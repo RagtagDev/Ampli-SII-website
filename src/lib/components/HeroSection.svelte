@@ -6,11 +6,12 @@
 <div class="relative min-h-[60vh] flex flex-col md:flex-row justify-center items-start md:items-center px-8 pt-16 pb-16 rounded-3xl overflow-hidden bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 shadow-xl animate-fade-in">
   <div class="z-10 flex-1 md:max-w-xl">
     <h1 class="text-4xl md:text-5xl font-extrabold text-white mb-4 drop-shadow-lg leading-tight whitespace-nowrap">
-      Permissionless platform
-      <br class="hidden md:inline" /> for on-demand leverage
+      Permissionless, self-custodial margin
+      <br class="hidden md:inline" />
+      protocol for on-demand leverage
     </h1>
     <p class="text-lg md:text-xl text-purple-200 mb-8 max-w-xl leading-relaxed">
-      Ampli is the most expressive, composable, and frictionless margin protocol. Built on Uniswap v4 for DeFi power users.
+      Built on Uniswap v4 for DeFi power users
     </p>
     <button class="bg-purple-600 text-white font-semibold px-8 py-3 rounded-full shadow-lg hover:bg-purple-700 transition focus:outline-none focus:ring-2 focus:ring-purple-400 text-lg" on:click={() => showModal = true}>Launch App</button>
   </div>
