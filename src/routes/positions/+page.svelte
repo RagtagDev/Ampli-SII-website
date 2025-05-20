@@ -1,21 +1,45 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { createClient, CHAINS, formatAddress } from '$lib/wallet';
+  import type { WalletClient } from 'viem';
+  import type { Chain } from 'viem';
   
-  // Chain configurations
-  const CHAINS = {
-    optimism: {
-      id: '0xa',
-      name: 'Optimism',
-      rpcUrl: 'https://mainnet.optimism.io',
-      blockExplorer: 'https://optimistic.etherscan.io',
-    },
-    base: {
-      id: '0x2105',
-      name: 'Base',
-      rpcUrl: 'https://mainnet.base.org',
-      blockExplorer: 'https://basescan.org',
-    },
-  };
+  // Position-level action functions
+  async function handleNewPosition() {
+    // TODO: Implement new position creation
+    console.log('Creating new position');
+  }
+
+  async function handleDeposit(positionId: number) {
+    // TODO: Implement deposit functionality
+    console.log('Depositing to position:', positionId);
+  }
+
+  async function handleBorrow(positionId: number) {
+    // TODO: Implement borrow functionality
+    console.log('Borrowing from position:', positionId);
+  }
+
+  async function handleRepay(positionId: number) {
+    // TODO: Implement repay functionality
+    console.log('Repaying position:', positionId);
+  }
+
+  async function handleClosePosition(positionId: number) {
+    // TODO: Implement position closing
+    console.log('Closing position:', positionId);
+  }
+
+  // Asset-level action functions
+  async function handleWithdraw(positionId: number, assetId: number) {
+    // TODO: Implement asset withdrawal
+    console.log('Withdrawing asset:', assetId, 'from position:', positionId);
+  }
+
+  async function handleSwap(positionId: number, assetId: number) {
+    // TODO: Implement asset swap
+    console.log('Swapping asset:', assetId, 'in position:', positionId);
+  }
 
   // Mock data for positions and their assets
   let positions = [
@@ -95,12 +119,13 @@
     },
   ];
 
-  let selectedChain = CHAINS.optimism;
+  let selectedChain: Chain = CHAINS.optimism;
   let isWalletConnected = false;
   let walletAddress = '';
   let shortAddress = '';
   let isDropdownOpen = false;
   let isAddressDropdownOpen = false;
+  let walletClient: WalletClient | null = null;
 
   let accountsChangedListener: ((accounts: string[]) => void) | null = null;
   let chainChangedListener: ((chainId: string) => void) | null = null;
@@ -120,12 +145,13 @@
     walletAddress = '';
     shortAddress = '';
 
-    if (typeof window.ethereum !== 'undefined') {
+    walletClient = createClient();
+    if (walletClient) {
       try {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-        if (accounts.length > 0) {
-          walletAddress = accounts[0];
-          shortAddress = `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
+        const [address] = await walletClient.getAddresses();
+        if (address) {
+          walletAddress = address;
+          shortAddress = formatAddress(address);
           isWalletConnected = true;
         }
       } catch (error) {
@@ -141,6 +167,7 @@
     shortAddress = '';
     isAddressDropdownOpen = false;
     isDropdownOpen = false;
+    walletClient = null;
   }
 
   // Update onMount to handle initial state and cleanup
@@ -155,9 +182,10 @@
       };
 
       chainChangedListener = async (chainId: string) => {
-        if (chainId === CHAINS.optimism.id) {
+        const chainIdNum = parseInt(chainId, 16);
+        if (chainIdNum === CHAINS.optimism.id) {
           selectedChain = CHAINS.optimism;
-        } else if (chainId === CHAINS.base.id) {
+        } else if (chainIdNum === CHAINS.base.id) {
           selectedChain = CHAINS.base;
         }
         await checkConnection();
@@ -181,32 +209,18 @@
     };
   });
 
-  async function switchChain(chain: typeof CHAINS.optimism) {
+  async function switchChain(chain: Chain) {
+    if (!walletClient) return;
+    
     try {
-      await window.ethereum?.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: chain.id }],
-      });
+      await walletClient.switchChain({ id: chain.id });
       selectedChain = chain;
     } catch (error: any) {
       // If the chain is not added to MetaMask, add it
       if (error.code === 4902) {
         try {
-          await window.ethereum?.request({
-            method: 'wallet_addEthereumChain',
-            params: [
-              {
-                chainId: chain.id,
-                chainName: chain.name,
-                rpcUrls: [chain.rpcUrl],
-                blockExplorerUrls: [chain.blockExplorer],
-                nativeCurrency: {
-                  name: 'ETH',
-                  symbol: 'ETH',
-                  decimals: 18,
-                },
-              },
-            ],
+          await walletClient.addChain({
+            chain,
           });
           selectedChain = chain;
         } catch (addError) {
@@ -227,22 +241,22 @@
       walletAddress = '';
       shortAddress = '';
 
-      // Check if MetaMask is installed
-      if (typeof window.ethereum === 'undefined') {
+      walletClient = createClient();
+      if (!walletClient) {
         alert('Please install MetaMask or another Web3 wallet to use this feature');
         return;
       }
 
       // Request account access
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const [address] = await walletClient.getAddresses();
       
-      if (accounts.length === 0) {
+      if (!address) {
         throw new Error('No accounts found');
       }
 
       // Update state with new connection
-      walletAddress = accounts[0];
-      shortAddress = `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
+      walletAddress = address;
+      shortAddress = formatAddress(address);
       isWalletConnected = true;
 
       // Switch to selected chain after connecting
@@ -258,6 +272,7 @@
       isWalletConnected = false;
       walletAddress = '';
       shortAddress = '';
+      walletClient = null;
     }
   }
 
@@ -265,7 +280,7 @@
     isDropdownOpen = !isDropdownOpen;
   }
 
-  function handleChainSelect(chain: typeof CHAINS.optimism) {
+  function handleChainSelect(chain: Chain) {
     switchChain(chain);
     isDropdownOpen = false;
   }
@@ -370,7 +385,10 @@
     <div class="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 shadow-xl">
       <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl font-bold text-white">Positions</h1>
-        <button class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+        <button 
+          class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+          on:click={handleNewPosition}
+        >
           New Position
         </button>
       </div>
@@ -394,16 +412,28 @@
                 <td class="py-4">
                   <div class="flex gap-2 justify-between">
                     <div class="flex gap-2">
-                      <button class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors">
+                      <button 
+                        class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                        on:click={() => handleDeposit(position.id)}
+                      >
                         Deposit
                       </button>
-                      <button class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors">
+                      <button 
+                        class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                        on:click={() => handleBorrow(position.id)}
+                      >
                         Borrow
                       </button>
-                      <button class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors">
+                      <button 
+                        class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                        on:click={() => handleRepay(position.id)}
+                      >
                         Repay
                       </button>
-                      <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors">
+                      <button 
+                        class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                        on:click={() => handleClosePosition(position.id)}
+                      >
                         Close
                       </button>
                     </div>
@@ -463,10 +493,16 @@
                               <td class="py-3">
                                 <div class="flex gap-2">
                                   {#if asset.type === 'collateral'}
-                                    <button class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors">
+                                    <button 
+                                      class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                                      on:click={() => handleWithdraw(position.id, asset.id)}
+                                    >
                                       Withdraw
                                     </button>
-                                    <button class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors">
+                                    <button 
+                                      class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                                      on:click={() => handleSwap(position.id, asset.id)}
+                                    >
                                       Swap
                                     </button>
                                   {/if}
