@@ -19,6 +19,7 @@ export function createClient() {
 
   return createWalletClient({
     transport: custom(window.ethereum),
+    chain: optimism,
   });
 }
 

@@ -3,7 +3,26 @@
   import { createClient, CHAINS, formatAddress } from '$lib/wallet';
   import type { WalletClient } from 'viem';
   import type { Chain } from 'viem';
-  
+  import { createPublicClient, http, parseEther } from 'viem';
+  import { optimism } from 'viem/chains';
+  import { agentAbi } from '../../abi/agentAbi';
+  import { supplyCollateralCalldata } from '../../utils';
+
+  const poolKey = {
+    currency0: "0x9E357a7ee75914452f06DdFb9622f924276024a3",
+    currency1: "0xb42Cfe81B72A2a3be27BA2f7D3D3eBD4Cc157661",
+    fee: 100,
+    tickSpacing: 1,
+    hooks: "0x00D6aFb06576DEA356cBa9F44Ba71aB4eb780Ac0",
+  } as const;
+
+  const authorizedOperator = "0x934F58ADbda47765F81727894803D497fb7d68F3";
+
+  const publicSpokeClient = createPublicClient({
+    chain: optimism,
+    transport: http("http://127.0.0.1:9545/"),
+  });
+
   // Position-level action functions
   async function handleNewPosition() {
     // TODO: Implement new position creation
@@ -11,8 +30,53 @@
   }
 
   async function handleDeposit(positionId: number) {
-    // TODO: Implement deposit functionality
-    console.log('Depositing to position:', positionId);
+    if (!isWalletConnected || !walletClient) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      // Ensure we're on the correct chain (Optimism) for the deposit
+      if (selectedChain.id !== CHAINS.optimism.id) {
+        await switchChain(CHAINS.optimism);
+      }
+
+      // Get the account address
+      const [address] = await walletClient.getAddresses();
+      if (!address) {
+        throw new Error('No account found in wallet');
+      }
+
+      const execution = supplyCollateralCalldata(poolKey, BigInt(positionId), parseEther("1"));
+
+      const { request } = await publicSpokeClient.simulateContract({
+        account: address,
+        address: "0x31842da3bc6eB9fe0Ba9F2b332B7965d75309041",
+        abi: agentAbi,
+        functionName: "initiate",
+        args: [
+          authorizedOperator,
+          execution,
+          [
+            {
+              currency: "0xb42Cfe81B72A2a3be27BA2f7D3D3eBD4Cc157661",
+              amount: parseEther("1"),
+            },
+          ],
+        ],
+        chain: optimism,
+      });
+
+      const hash = await walletClient.writeContract(request);
+      console.log(`AddFungibleCollateral Tx: ${hash}`);
+    } catch (error) {
+      console.error('Error depositing to position:', error);
+      if (error instanceof Error) {
+        alert(`Failed to deposit: ${error.message}`);
+      } else {
+        alert('Failed to deposit. Please try again.');
+      }
+    }
   }
 
   async function handleBorrow(positionId: number) {
@@ -45,9 +109,9 @@
   let positions = [
     {
       id: 1,
-      value: '$10,000',
+      value: '$15,000',
       debt: '$5,000',
-      marginRatio: '200%',
+      marginRatio: '40%',
       minMarginRatio: '150%',
       isExpanded: false,
       assets: [
@@ -65,7 +129,7 @@
           name: 'USD Coin',
           symbol: 'USDC',
           value: '$3,000',
-          marginRequirement: '$1,500',
+          marginRequirement: '$500',
           type: 'collateral',
           icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
         },
@@ -74,7 +138,7 @@
           name: 'Tether',
           symbol: 'USDT',
           value: '$5,000',
-          marginRequirement: '$2,500',
+          marginRequirement: '$2,000',
           type: 'debt',
           icon: 'https://assets.coingecko.com/coins/images/325/large/tether.png',
         },
@@ -84,7 +148,7 @@
       id: 2,
       value: '$25,000',
       debt: '$15,000',
-      marginRatio: '166%',
+      marginRatio: '66%',
       minMarginRatio: '150%',
       isExpanded: false,
       assets: [
@@ -93,7 +157,7 @@
           name: 'Ethereum',
           symbol: 'ETH',
           value: '$15,000',
-          marginRequirement: '$7,500',
+          marginRequirement: '$5,500',
           type: 'collateral',
           icon: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
         },
@@ -102,7 +166,7 @@
           name: 'USD Coin',
           symbol: 'USDC',
           value: '$10,000',
-          marginRequirement: '$5,000',
+          marginRequirement: '$4,000',
           type: 'collateral',
           icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
         },
@@ -111,7 +175,7 @@
           name: 'Tether',
           symbol: 'USDT',
           value: '$15,000',
-          marginRequirement: '$7,500',
+          marginRequirement: '$7,000',
           type: 'debt',
           icon: 'https://assets.coingecko.com/coins/images/325/large/tether.png',
         },
